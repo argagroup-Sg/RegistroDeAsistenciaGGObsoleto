@@ -159,11 +159,33 @@
 </head>
 <body>
 
-  <h1>Control de Numeración QR</h1>
 
+<!-- =======================
+VISTA 0
+======================= -->
+
+<div id="vista-menu-principal">
+
+    <h1>Seleccione la Numeración</h1>
+
+    <div id="contenedorHojas" class="grid-botones">
+    </div>
+
+</div>
+
+<h1 id="tituloSistema" style="display:none;">
+    Control de Numeración QR
+</h1>
+
+
+<h2 id="nombreHojaSeleccionada"
+    style="display:none;color:#1565c0;margin-top:-10px;">
+</h2>
+  
   <!-- VISTA 1: PANTALLA DE ESCANEO -->
-  <div id="vista-escaneo">
-    <div id="menu-botones">
+<div id="vista-escaneo" style="display:none;">
+  
+  <div id="menu-botones">
       <button class="btn-accion btn-asignar" onclick="activarModo('buscarAsignar')">HABILITAR CÁMARA PARA ASIGNAR NÚMERO</button>
       <button class="btn-accion btn-devolver" onclick="activarModo('devolver')">HABILITAR CÁMARA PARA DEVOLVER</button>
     </div>
@@ -229,11 +251,13 @@
 
   <script>
     
-    const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzBqdJCEXSEwVhtz3hWmmZzopmG5Mm6OA6buvfQJ9B4E8-g7QHAATPb3zDiZNoxtQCQoA/exec";
+    const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbwR5DoviVPHfJaZK6kCXwjsF-LKCKZoXL9qGitl8wK5p3C7KGuS4QpGNeJAUoXJMxyMOA/exec";
     let html5QrcodeScanner = null;
     let procesandoScan = false;
     let modoAccionActual = ""; 
     let qrLimpioGuardado = ""; 
+    let hojaSeleccionada = "";
+    let hojasSistema = [];
 
     window.onerror = function(msg, url, linenumber) {
       const r = document.getElementById("resultado");
@@ -241,6 +265,124 @@
       r.innerHTML = "Error interno: " + msg + " (Línea: " + linenumber + ")";
       return false;
     };
+
+    
+    //==============================
+    // CARGAR MENÚ PRINCIPAL
+    //==============================
+    window.onload = function () {
+    
+        cargarHojas();
+    
+    };
+    
+    function cargarHojas(){
+
+    const viejoScript = document.getElementById("jsonp-hojas");
+
+    if(viejoScript) viejoScript.remove();
+
+    const script = document.createElement("script");
+
+    script.id = "jsonp-hojas";
+
+    script.src = WEB_APP_URL +
+        "?accion=obtenerHojas&callback=recibirHojas";
+
+    document.body.appendChild(script);
+
+    }
+    window.recibirHojas = function(respuesta){
+
+    if(!respuesta.ok){
+
+        alert(respuesta.mensaje);
+
+        return;
+
+    }
+
+    hojasSistema = respuesta.hojas;
+
+    crearBotonesHojas();
+
+    } 
+    
+    function crearBotonesHojas(){
+
+    const contenedor = document.getElementById("contenedorHojas");
+
+    contenedor.innerHTML="";
+
+    hojasSistema.forEach(function(nombre){
+
+        const boton = document.createElement("button");
+
+        boton.className="btn-hoja";
+
+        boton.innerHTML=nombre;
+
+        boton.onclick=function(){
+
+            seleccionarHoja(nombre);
+
+        };
+
+        contenedor.appendChild(boton);
+
+    });
+
+    } 
+    
+    function seleccionarHoja(nombre){
+    
+        hojaSeleccionada = nombre;
+    
+        document.getElementById("nombreHojaSeleccionada").innerHTML =
+            "Numeración : <strong>" + nombre + "</strong>";
+    
+        document.getElementById("vista-menu-principal").style.display = "none";
+    
+        document.getElementById("tituloSistema").style.display = "block";
+    
+        document.getElementById("nombreHojaSeleccionada").style.display = "block";
+    
+        document.getElementById("vista-escaneo").style.display = "block";
+    
+    }
+
+
+    function regresarAlMenuPrincipal() {
+
+    procesandoScan = false;
+
+    modoAccionActual = "";
+
+    qrLimpioGuardado = "";
+    
+    hojaSeleccionada="";
+
+    document.getElementById("nombreHojaSeleccionada").style.display="none";
+      
+    document.getElementById("resultado").innerHTML = "";
+
+    document.getElementById("resultado").className = "";
+
+    document.getElementById("vista-formulario-asignar").style.display = "none";
+
+    document.getElementById("vista-resultado-devolver").style.display = "none";
+
+    document.getElementById("vista-escaneo").style.display = "none";
+
+    document.getElementById("btnCancelar").style.display = "none";
+
+    document.getElementById("menu-botones").style.display = "block";
+
+    document.getElementById("tituloSistema").style.display = "none";
+
+    document.getElementById("vista-menu-principal").style.display = "block";
+
+    }
 
     function activarModo(modo) {
       modoAccionActual = modo;
@@ -310,8 +452,12 @@
         
         const script = document.createElement("script");
         script.id = "jsonp-request";
-        script.src = WEB_APP_URL + "?codigoQR=" + encodeURIComponent(decodedText) + "&accion=" + modoAccionActual + "&callback=procesarRespuestaServidorJSONP";
-        
+        script.src =
+            WEB_APP_URL +
+            "?codigoQR=" + encodeURIComponent(decodedText) +
+            "&accion=" + encodeURIComponent(modoAccionActual) +
+            "&hoja=" + encodeURIComponent(hojaSeleccionada) +
+            "&callback=procesarRespuestaServidorJSONP";
         script.onerror = function() {
           maniobrarErrorServidor("Error crítico de conexión con Google.");
         };
@@ -415,7 +561,13 @@
       const script = document.createElement("script");
       script.id = "jsonp-request";
       // Enviamos el parámetro filaDestino en lugar del código QR original
-      script.src = WEB_APP_URL + "?accion=confirmarAsignar&filaDestino=" + encodeURIComponent(qrLimpioGuardado) + "&numeroAsignado=" + encodeURIComponent(numeroAsignadoValue) + "&callback=procesarRespuestaServidorJSONP";
+      script.src =
+          WEB_APP_URL +
+          "?accion=confirmarAsignar" +
+          "&filaDestino=" + encodeURIComponent(qrLimpioGuardado) +
+          "&numeroAsignado=" + encodeURIComponent(numeroAsignadoValue) +
+          "&hoja=" + encodeURIComponent(hojaSeleccionada) +
+          "&callback=procesarRespuestaServidorJSONP";
       document.body.appendChild(script);
     }
 
@@ -432,19 +584,5 @@
       }
     }
 
-    function regresarAlMenuPrincipal() {
-      procesandoScan = false;
-      modoAccionActual = "";
-      qrLimpioGuardado = "";
-      
-      document.getElementById("resultado").innerHTML = "";
-      document.getElementById("resultado").className = "";
-      
-      document.getElementById("vista-formulario-asignar").style.display = "none";
-      document.getElementById("vista-resultado-devolver").style.display = "none";
-      
-      document.getElementById("btnCancelar").style.display = "none";
-      document.getElementById("menu-botones").style.display = "block";
-      document.getElementById("vista-escaneo").style.display = "block";
-    }
+
   </script>
