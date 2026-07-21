@@ -273,11 +273,6 @@ VISTA 0
         <div id="asignar-cedula" class="info-valor">-</div>
       </div>
 
-      <div class="campo-entrada">
-        <!-- <label for="inputNumeroAsignado">Número Asignado:</label>  -->
-        <input type="text" id="inputNumeroAsignado" class="input-texto" value="0" autofocus>
-      </div>
-
       <button class="btn-accion btn-volver" onclick="guardarNumeroAsignado()"> REGISTRAR INGRESO </button>
       <button class="btn-accion btn-cancelar" onclick="regresarAlMenuPrincipal()">VOLVER</button>
     </div>
@@ -541,7 +536,7 @@ VISTA 0
           qrLimpioGuardado = data.filaDestino; 
           document.getElementById("asignar-nombre").innerText = data.nombre || "No especificado";
           document.getElementById("asignar-cedula").innerText = data.cedula || "No especificado";
-          document.getElementById("inputNumeroAsignado").value = "";
+         // document.getElementById("inputNumeroAsignado").value = "";
           
           const imgElement = document.getElementById("asignar-img");
           if (data.imagenCedula) {
@@ -607,10 +602,10 @@ VISTA 0
 
     function guardarNumeroAsignado() {
       const numeroAsignadoValue = document.getElementById("inputNumeroAsignado").value.trim();
-      if (!numeroAsignadoValue) {
+     /* if (!numeroAsignadoValue) {
         alert("Por favor, digite un número asignado antes de guardar.");
         return;
-      }
+      }*/
       
       const viejoScript = document.getElementById("jsonp-request");
       if (viejoScript) viejoScript.remove();
@@ -622,7 +617,7 @@ VISTA 0
           WEB_APP_URL +
           "?accion=confirmarAsignar" +
           "&filaDestino=" + encodeURIComponent(qrLimpioGuardado) +
-          "&numeroAsignado=" + encodeURIComponent(numeroAsignadoValue) +
+//          "&numeroAsignado=" + encodeURIComponent(numeroAsignadoValue) +
           "&hoja=" + encodeURIComponent(hojaSeleccionada) +
           "&callback=procesarRespuestaServidorJSONP";
       document.body.appendChild(script);
