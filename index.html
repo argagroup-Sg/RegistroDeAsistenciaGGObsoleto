@@ -257,7 +257,7 @@ VISTA 0
   <!-- VISTA 2: FORMULARIO DE ASIGNACIÓN -->
   <div id="vista-formulario-asignar" class="vista-resultado" style="display: none;">
     <div class="tarjeta-datos">
-      <div class="badge-estado">✓ ASIGNAR NÚMERO</div>
+      <div class="badge-estado">✓ REGISTRAR TURNO - INGRESO </div>
       
       <div class="contenedor-foto">
         <img id="asignar-img" class="foto-cedula" src="" alt="Fotografía Cédula">
@@ -274,11 +274,11 @@ VISTA 0
       </div>
 
       <div class="campo-entrada">
-        <label for="inputNumeroAsignado">Número Asignado:</label>
-        <input type="text" id="inputNumeroAsignado" class="input-texto" placeholder="Ingrese el número aquí" autofocus>
+        <!-- <label for="inputNumeroAsignado">Número Asignado:</label>  -->
+        <input type="text" id="inputNumeroAsignado" class="input-texto" value="0" autofocus>
       </div>
 
-      <button class="btn-accion btn-volver" onclick="guardarNumeroAsignado()">GUARDAR DATOS</button>
+      <button class="btn-accion btn-volver" onclick="guardarNumeroAsignado()"> REGISTRAR INGRESO </button>
       <button class="btn-accion btn-cancelar" onclick="regresarAlMenuPrincipal()">VOLVER</button>
     </div>
   </div>
@@ -308,7 +308,7 @@ VISTA 0
 
   <script>
     
-    const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbws6tHHsAmv1RxJo3ZvNOm-ymNbZ7DI69bHAjZadkgSR29DWdAg3IlrAHVPVNyxVmIiIw/exec";
+    const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxlCwG9Dqq2K7hsN8atK7IMQe4DSRJ9mCcGbijv__0ef1kIVSJ66I0w2VjtacnIpcwQog/exec";
     let html5QrcodeScanner = null;
     let procesandoScan = false;
     let modoAccionActual = ""; 
