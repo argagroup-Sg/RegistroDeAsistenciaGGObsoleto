@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Control de Numeración QR</title>
+  <title>Control de Personal QR</title>
   <!-- Enlace local idéntico a tu repositorio -->
   <script src="./html5-qrcode.min.js"></script>
   <style>
@@ -223,7 +223,7 @@ VISTA 0
 
 <div id="vista-menu-principal">
 
-    <h1>Seleccione la Numeración</h1>
+    <h1>Seleccione la Su Categoría</h1>
 
     <div id="contenedorHojas" class="grid-botones">
     </div>
@@ -231,7 +231,7 @@ VISTA 0
 </div>
 
 <h1 id="tituloSistema" style="display:none;">
-    Control de Numeración QR
+    Control de Personal QR
 </h1>
 
 
@@ -243,8 +243,8 @@ VISTA 0
 <div id="vista-escaneo" style="display:none;">
   
   <div id="menu-botones">
-      <button class="btn-accion btn-asignar" onclick="activarModo('buscarAsignar')">HABILITAR CÁMARA PARA ASIGNAR NÚMERO</button>
-      <button class="btn-accion btn-devolver" onclick="activarModo('devolver')">HABILITAR CÁMARA PARA DEVOLVER</button>
+      <button class="btn-accion btn-asignar" onclick="activarModo('buscarAsignar')">HABILITAR CÁMARA PARA REGISTRAR SU INGRESO A LABORES</button>
+      <button class="btn-accion btn-devolver" onclick="activarModo('devolver')">HABILITAR CÁMARA PARA REGISTRAR SU SALIDA DE LABORES</button>
     </div>
     
     <!-- Botón para apagar la cámara y volver al menú principal de botones -->
@@ -257,7 +257,7 @@ VISTA 0
   <!-- VISTA 2: FORMULARIO DE ASIGNACIÓN -->
   <div id="vista-formulario-asignar" class="vista-resultado" style="display: none;">
     <div class="tarjeta-datos">
-      <div class="badge-estado">✓ REGISTRAR TURNO - INGRESO </div>
+      <div class="badge-estado">✓ REGISTRAR INGRESO A LABORES</div>
       
       <div class="contenedor-foto">
         <img id="asignar-img" class="foto-cedula" src="" alt="Fotografía Cédula">
