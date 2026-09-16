@@ -297,7 +297,7 @@
       }
     }
 
-    // ⚡ PROCESAMIENTO LOCAL EN SEGUNDOS - CONEXIÓN CON SUPABASE
+       // ⚡ PROCESAMIENTO LOCAL EN SEGUNDOS - CONEXIÓN CON SUPABASE (COMPLETAMENTE CORREGIDO)
     async function codigoDetectadoEnVivo(decodedText) {
       if (procesandoScan) return;
       procesandoScan = true;
@@ -312,7 +312,8 @@
         // 1. Limpieza del QR para obtener únicamente la Cédula (Retira lo que está antes del '-')
         let cedula = decodedText.trim();
         if (cedula.includes("-")) {
-          cedula = cedula.split("-")[1].trim();
+          // Tomamos la posición 1 (lo que está después del guion) y le aplicamos trim
+          cedula = cedula.split("-")[1].trim(); 
         }
         cedulaGuardadaMesa = cedula; // Guardamos la cédula para el proceso posterior
 
@@ -327,23 +328,32 @@
         const resUser = await fetch(urlUser, { headers: headersSupabase });
         const usuarios = await resUser.json();
 
-        if (usuarios.length === 0) {
+        // Validación: Si la respuesta no es un arreglo o está vacía
+        if (!Array.isArray(usuarios) || usuarios.length === 0) {
           procesarRespuestaServidorJSONP({ ok: false, mensaje: "Cédula no registrada en el sistema.", cedula: cedula });
           return;
         }
-        const usuario = usuarios[0];
+        const usuario = usuarios[0]; // Tomamos el primer registro encontrado de manera segura
 
         // ----------------------------------------------------
         // CASO DE USO A: VISTA ASIGNAR
         // ----------------------------------------------------
         if (modoAccionActual === "asignar" || modoAccionActual === "Asignar") {
-          // Comprobar si ya tiene una asignación activa (Opcional pero recomendado para evitar duplicar asignaciones)
+          // Comprobar si ya tiene una asignación activa
           const urlCheck = `${SUPABASE_URL}/rest/v1/numeracion?cedula=eq.${cedula}&estado=eq.Asignado&select=id`;
           const resCheck = await fetch(urlCheck, { headers: headersSupabase });
           const activos = await resCheck.json();
 
-          if (activos.length > 0) {
-            procesarRespuestaServidorJSONP({ ok: false, mensaje: "¡Atención! Este usuario ya tiene un número asignado sin devolver.", nombre: usuario.nombres_apellidos, cedula: cedula, imagenCedula: usuario.url_foto, color: "orange" });
+          // Validación ultra segura
+          if (activos && Array.isArray(activos) && activos.length > 0) {
+            procesarRespuestaServidorJSONP({ 
+              ok: false, 
+              mensaje: "¡Atención! Este usuario ya tiene un número asignado sin devolver.", 
+              nombre: usuario.nombres_apellidos, 
+              cedula: cedula, 
+              imagenCedula: usuario.url_foto, 
+              color: "orange" 
+            });
             return;
           }
 
@@ -360,17 +370,24 @@
         // CASO DE USO B: VISTA DEVOLUCIÓN
         // ----------------------------------------------------
         } else { 
-          // Buscar el registro de asignación MAS RECIENTE (id descendente) que esté 'Asignado'
+          // Buscar el registro de asignación MÁS RECIENTE (id descendente) que esté 'Asignado'
           const urlDev = `${SUPABASE_URL}/rest/v1/numeracion?cedula=eq.${cedula}&estado=eq.Asignado&order=id.desc&limit=1`;
           const resDev = await fetch(urlDev, { headers: headersSupabase });
           const registros = await resDev.json();
 
-          if (registros.length === 0) {
-            procesarRespuestaServidorJSONP({ ok: false, mensaje: "No hay registros activos en estado 'Asignado' para esta cédula.", nombre: usuario.nombres_apellidos, cedula: cedula, imagenCedula: usuario.url_foto });
+          // Validación: Si no encuentra registros asignados activos
+          if (!registros || !Array.isArray(registros) || registros.length === 0) {
+            procesarRespuestaServidorJSONP({ 
+              ok: false, 
+              mensaje: "No hay registros activos en estado 'Asignado' para esta cédula.", 
+              nombre: usuario.nombres_apellidos, 
+              cedula: cedula, 
+              imagenCedula: usuario.url_foto 
+            });
             return;
           }
 
-          const registroADevolver = registros[0];
+          const registroADevolver = registros[0]; // Tomamos el primer elemento de forma segura
 
           // Ejecutar la Devolución (Update) en Supabase cambiando estado a 'Devuelto' y marcando la hora
           const urlUpdate = `${SUPABASE_URL}/rest/v1/numeracion?id=eq.${registroADevolver.id}`;
