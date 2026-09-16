@@ -297,7 +297,7 @@
       }
     }
 
-       // ⚡ PROCESAMIENTO LOCAL EN SEGUNDOS - CONEXIÓN CON SUPABASE (COMPLETAMENTE CORREGIDO)
+          // ⚡ PROCESAMIENTO CON SUPABASE
     async function codigoDetectadoEnVivo(decodedText) {
       if (procesandoScan) return;
       procesandoScan = true;
@@ -309,45 +309,57 @@
       try {
         await html5QrcodeScanner.stop();
 
-        // 1. Limpieza del QR para obtener únicamente la Cédula (Retira lo que está antes del '-')
+        /* 1. Limpieza del QR para obtener únicamente la Cédula
         let cedula = decodedText.trim();
         if (cedula.includes("-")) {
           cedula = cedula.split("-")[1].trim(); 
-        }       
-        cedulaGuardadaMesa = cedula; // Guardamos la cédula para el proceso posterior
+        }// Extrae de forma segura el texto tras el guion*/
 
-        // Headers comunes para consultar la API REST de Supabase
+
+                // 1. LIMPIEZA ABSOLUTA DEL QR (Extrae solo los dígitos numéricos consecutivos)
+        // Esto elimina letras iniciales, guiones, espacios o cualquier carácter extraño de forma infalible.
+        let matchCedula = decodedText.trim().match(/\d+/);
+        let cedula = matchCedula ? matchCedula[0] : "";
+        cedulaGuardadaMesa = cedula; 
+
+        // Validación inmediata antes de ir a Supabase
+        if (!cedula) {
+          procesarRespuestaServidorJSONP({ ok: false, mensaje: "El código QR escaneado no contiene un formato de cédula válido." });
+          return;
+        }
+
+        
+        cedulaGuardadaMesa = cedula; 
+
+        // Headers de autenticación para Supabase
         const headersSupabase = {
           "apikey": SUPABASE_KEY,
           "Authorization": `Bearer ${SUPABASE_KEY}`
         };
 
-        // 2. Buscar si el usuario existe en la tabla 'usuarios'
-        // Limpiamos la cédula quitando cualquier espacio accidental al inicio o final
-        const cedulaLimpia = cedula.trim();
-        // Usamos ilike con comodines por si existen espacios invisibles en la base de datos
-        const urlUser = `${SUPABASE_URL}/rest/v1/usuarios?cedula=ilike.*${cedulaLimpia}*&select=*`;
-
+        // 2. Buscar si el usuario existe en la tabla 'usuarios' usando codificación URI limpia
+        const urlUser = `${SUPABASE_URL}/rest/v1/usuarios?cedula=eq.${encodeURIComponent(cedula)}&select=*`;
         const resUser = await fetch(urlUser, { headers: headersSupabase });
         const usuarios = await resUser.json();
 
-        // Validación: Si la respuesta no es un arreglo o está vacía
+        // Verificamos si Supabase devolvió una lista con al menos un usuario
         if (!Array.isArray(usuarios) || usuarios.length === 0) {
           procesarRespuestaServidorJSONP({ ok: false, mensaje: "Cédula no registrada en el sistema.", cedula: cedula });
           return;
         }
-        const usuario = usuarios[0]; // Tomamos el primer registro encontrado de manera segura
+        
+        // CORRECCIÓN: Extraemos el primer registro del Array devuelto por Supabase
+        const usuario = usuarios[0]; 
 
         // ----------------------------------------------------
         // CASO DE USO A: VISTA ASIGNAR
         // ----------------------------------------------------
         if (modoAccionActual === "asignar" || modoAccionActual === "Asignar") {
           // Comprobar si ya tiene una asignación activa
-          const urlCheck = `${SUPABASE_URL}/rest/v1/numeracion?cedula=eq.${cedula}&estado=eq.Asignado&select=id`;
+          const urlCheck = `${SUPABASE_URL}/rest/v1/numeracion?cedula=eq.${encodeURIComponent(cedula)}&estado=eq.Asignado&select=id`;
           const resCheck = await fetch(urlCheck, { headers: headersSupabase });
           const activos = await resCheck.json();
 
-          // Validación ultra segura
           if (activos && Array.isArray(activos) && activos.length > 0) {
             procesarRespuestaServidorJSONP({ 
               ok: false, 
@@ -360,7 +372,7 @@
             return;
           }
 
-          // Enviar respuesta simulada a tu interfaz existente
+          // Enviar los datos del usuario a tu interfaz visual existente
           procesarRespuestaServidorJSONP({
             ok: true,
             tipoVista: "formularioAsignar",
@@ -373,12 +385,11 @@
         // CASO DE USO B: VISTA DEVOLUCIÓN
         // ----------------------------------------------------
         } else { 
-          // Buscar el registro de asignación MÁS RECIENTE (id descendente) que esté 'Asignado'
-          const urlDev = `${SUPABASE_URL}/rest/v1/numeracion?cedula=eq.${cedula}&estado=eq.Asignado&order=id.desc&limit=1`;
+          // Buscar el registro de asignación MÁS RECIENTE que esté 'Asignado'
+          const urlDev = `${SUPABASE_URL}/rest/v1/numeracion?cedula=eq.${encodeURIComponent(cedula)}&estado=eq.Asignado&order=id.desc&limit=1`;
           const resDev = await fetch(urlDev, { headers: headersSupabase });
           const registros = await resDev.json();
 
-          // Validación: Si no encuentra registros asignados activos
           if (!registros || !Array.isArray(registros) || registros.length === 0) {
             procesarRespuestaServidorJSONP({ 
               ok: false, 
@@ -390,9 +401,9 @@
             return;
           }
 
-          const registroADevolver = registros[0]; // Tomamos el primer elemento de forma segura
+          const registroADevolver = registros[0]; // Extraemos el primer registro de forma segura
 
-          // Ejecutar la Devolución (Update) en Supabase cambiando estado a 'Devuelto' y marcando la hora
+          // Actualizar la fila en Supabase cambiando estado a 'Devuelto'
           const urlUpdate = `${SUPABASE_URL}/rest/v1/numeracion?id=eq.${registroADevolver.id}`;
           const resUpdate = await fetch(urlUpdate, {
             method: "PATCH",
