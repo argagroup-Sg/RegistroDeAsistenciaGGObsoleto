@@ -314,6 +314,7 @@
     }
 
     // ⚡ PROCESAMIENTO ASÍNCRONO DIRECTO EN SUPABASE
+        // ⚡ PROCESAMIENTO CON SUPABASE - LOGICA DE LIMPIEZA 100% CORREGIDA
     async function codigoDetectadoEnVivo(decodedText) {
       if (procesandoScan) return;
       procesandoScan = true;
@@ -325,30 +326,36 @@
       try {
         await html5QrcodeScanner.stop();
 
-        // 1. TU LÓGICA DE LIMPIEZA ORIGINAL CORREGIDA PARA NAVEGADOR
-        let cedula = String(decodedText).trim();
-        if (cedula.includes("-")) {
-          const partes = cedula.split("-");
-          cedula = partes[1] ? partes[1].trim() : cedula; // Toma el elemento después del guion de forma segura
-        }
-        cedulaGuardadaMesa = cedula; 
+        // 1. TRADUCCIÓN CORRECTA DE TU FUNCIÓN DE LIMPIEZA ORIGINAL PARA EL NAVEGADOR
+        let codigoString = String(decodedText).trim();
+        let cedula = codigoString;
 
-        // Headers comunes para consultar la API REST de Supabase
+        if (codigoString.includes("-")) {
+          const partes = codigoString.split("-");
+          // CORRECCIÓN: Tomamos el índice [1] (lo que está después del guion) de forma segura
+          cedula = partes[1] ? partes[1].trim() : codigoString;
+        }
+        cedulaGuardadaMesa = cedula; // Guardamos la cédula limpia para el envío posterior
+
+        // Headers de autenticación para Supabase
         const headersSupabase = {
           "apikey": SUPABASE_KEY,
           "Authorization": `Bearer ${SUPABASE_KEY}`
         };
 
         // 2. Buscar si el usuario existe en la tabla 'usuarios'
-        const urlUser = `${SUPABASE_URL}/rest/v1/usuarios?cedula=eq.${encodeURIComponent(cedula)}&select=*`;
+        const urlUser = `${SUPABASE_URL}/rest/v1/usuarios?cedula=eq.${encodeURIComponent(cedula)}`;
         const resUser = await fetch(urlUser, { headers: headersSupabase });
         const usuarios = await resUser.json();
 
+        // Verificamos si Supabase devolvió una lista vacía
         if (!Array.isArray(usuarios) || usuarios.length === 0) {
           procesarRespuestaServidorJSONP({ ok: false, mensaje: "La cédula " + cedula + " no existe en el sistema.", cedula: cedula });
           return;
         }
-        const usuario = usuarios[0];
+        
+        // Extraemos de forma segura el primer registro del Array de Supabase
+        const usuario = usuarios[0]; 
         const miniaturaFoto = obtenerUrlMiniatura(usuario.url_foto);
 
         // ----------------------------------------------------
@@ -372,7 +379,7 @@
             return;
           }
 
-          // Desplegar formulario visual
+          // Desplegar formulario visual de asignación
           procesarRespuestaServidorJSONP({
             ok: true,
             tipoVista: "formularioAsignar",
@@ -382,15 +389,15 @@
           });
 
         // ----------------------------------------------------
-        // CASO DE USO B: VISTA DEVOLUCIÓN (Traducción fiel de procesarDevolucion)
+        // CASO DE USO B: VISTA DEVOLUCIÓN
         // ----------------------------------------------------
         } else { 
-          // Buscar el último registro registrado de esta cédula (El más reciente por id descendente)
+          // Buscar el último registro registrado de esta cédula (id descendente)
           const urlDev = `${SUPABASE_URL}/rest/v1/numeracion?cedula=eq.${encodeURIComponent(cedula)}&order=id.desc&limit=1`;
           const resDev = await fetch(urlDev, { headers: headersSupabase });
           const registros = await resDev.json();
 
-          // Si nunca ha tenido asignaciones en el sistema
+          // Si nunca ha tenido asignaciones
           if (!registros || !Array.isArray(registros) || registros.length === 0) {
             procesarRespuestaServidorJSONP({ 
               ok: false, 
@@ -450,6 +457,7 @@
         maniobrarErrorServidor("Error de red o comunicación: " + err.message);
       }
     }
+
 
     // 🖨️ CONTROLADOR INTERNO DE VISTAS 
         // 🖨️ CONTROLADOR INTERNO DE VISTAS 
