@@ -234,7 +234,7 @@
     let html5QrcodeScanner = null;
     let procesandoScan = false;
     let modoAccionActual = ""; 
-    let cedulaGuardadaMesa = ""; // Guardamos la cédula en lugar del número de fila de Sheets
+    let cedulaGuardadaMesa = ""; 
 
     window.onerror = function(msg, url, linenumber) {
       const r = document.getElementById("resultado");
@@ -297,7 +297,23 @@
       }
     }
 
-          // ⚡ PROCESAMIENTO CON SUPABASE
+    // 🔄 TRADUCCIÓN FIEL DE TU FUNCIÓN OBTENER MINIATURA DE DRIVE
+    function obtenerUrlMiniatura(urlDrive) {
+      const textoUrl = String(urlDrive || "").trim();
+      if (!textoUrl) return "";
+      let idDrive = "";
+
+      if (textoUrl.includes("id=")) {
+        const matchId = textoUrl.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+        if (matchId) idDrive = matchId[1];
+      } else {
+        const matchD = textoUrl.match(/\/d\/([^\/]+)/);
+        if (matchD) idDrive = matchD[1];
+      }
+      return idDrive ? "https://drive.google.com/thumbnail?id=" + idDrive + "&sz=w100" : "";
+    }
+
+    // ⚡ PROCESAMIENTO ASÍNCRONO DIRECTO EN SUPABASE
     async function codigoDetectadoEnVivo(decodedText) {
       if (procesandoScan) return;
       procesandoScan = true;
@@ -309,44 +325,31 @@
       try {
         await html5QrcodeScanner.stop();
 
-        /* 1. Limpieza del QR para obtener únicamente la Cédula
-        let cedula = decodedText.trim();
+        // 1. TU LÓGICA DE LIMPIEZA ORIGINAL CORREGIDA PARA NAVEGADOR
+        let cedula = String(decodedText).trim();
         if (cedula.includes("-")) {
-          cedula = cedula.split("-")[1].trim(); 
-        }// Extrae de forma segura el texto tras el guion*/
-
-
-                // 1. LIMPIEZA ABSOLUTA DEL QR (Extrae solo los dígitos numéricos consecutivos)
-        // Esto elimina letras iniciales, guiones, espacios o cualquier carácter extraño de forma infalible.
-        let matchCedula = decodedText.trim().match(/\d+/);
-        let cedula = matchCedula ? matchCedula[0] : "";
+          const partes = cedula.split("-");
+          cedula = partes[1] ? partes[1].trim() : cedula; // Toma el elemento después del guion de forma segura
+        }
         cedulaGuardadaMesa = cedula; 
 
-        // Validación inmediata antes de ir a Supabase
-        if (!cedula) {
-          procesarRespuestaServidorJSONP({ ok: false, mensaje: "El código QR escaneado no contiene un formato de cédula válido." });
-          return;
-        }
-
-        // Headers de autenticación para Supabase
+        // Headers comunes para consultar la API REST de Supabase
         const headersSupabase = {
           "apikey": SUPABASE_KEY,
           "Authorization": `Bearer ${SUPABASE_KEY}`
         };
 
-        // 2. Buscar si el usuario existe en la tabla 'usuarios' usando codificación URI limpia
+        // 2. Buscar si el usuario existe en la tabla 'usuarios'
         const urlUser = `${SUPABASE_URL}/rest/v1/usuarios?cedula=eq.${encodeURIComponent(cedula)}&select=*`;
         const resUser = await fetch(urlUser, { headers: headersSupabase });
         const usuarios = await resUser.json();
 
-        // Verificamos si Supabase devolvió una lista con al menos un usuario
         if (!Array.isArray(usuarios) || usuarios.length === 0) {
-          procesarRespuestaServidorJSONP({ ok: false, mensaje: "Cédula no registrada en el sistema.", cedula: cedula });
+          procesarRespuestaServidorJSONP({ ok: false, mensaje: "La cédula " + cedula + " no existe en el sistema.", cedula: cedula });
           return;
         }
-        
-        // CORRECCIÓN: Extraemos el primer registro del Array devuelto por Supabase
-        const usuario = usuarios[0]; 
+        const usuario = usuarios[0];
+        const miniaturaFoto = obtenerUrlMiniatura(usuario.url_foto);
 
         // ----------------------------------------------------
         // CASO DE USO A: VISTA ASIGNAR
@@ -363,45 +366,59 @@
               mensaje: "¡Atención! Este usuario ya tiene un número asignado sin devolver.", 
               nombre: usuario.nombres_apellidos, 
               cedula: cedula, 
-              imagenCedula: usuario.url_foto, 
+              imagenCedula: miniaturaFoto, 
               color: "orange" 
             });
             return;
           }
 
-          // Enviar los datos del usuario a tu interfaz visual existente
+          // Desplegar formulario visual
           procesarRespuestaServidorJSONP({
             ok: true,
             tipoVista: "formularioAsignar",
             nombre: usuario.nombres_apellidos,
             cedula: usuario.cedula,
-            imagenCedula: usuario.url_foto
+            imagenCedula: miniaturaFoto
           });
 
         // ----------------------------------------------------
-        // CASO DE USO B: VISTA DEVOLUCIÓN
+        // CASO DE USO B: VISTA DEVOLUCIÓN (Traducción fiel de procesarDevolucion)
         // ----------------------------------------------------
         } else { 
-          // Buscar el registro de asignación MÁS RECIENTE que esté 'Asignado'
-          const urlDev = `${SUPABASE_URL}/rest/v1/numeracion?cedula=eq.${encodeURIComponent(cedula)}&estado=eq.Asignado&order=id.desc&limit=1`;
+          // Buscar el último registro registrado de esta cédula (El más reciente por id descendente)
+          const urlDev = `${SUPABASE_URL}/rest/v1/numeracion?cedula=eq.${encodeURIComponent(cedula)}&order=id.desc&limit=1`;
           const resDev = await fetch(urlDev, { headers: headersSupabase });
           const registros = await resDev.json();
 
+          // Si nunca ha tenido asignaciones en el sistema
           if (!registros || !Array.isArray(registros) || registros.length === 0) {
             procesarRespuestaServidorJSONP({ 
               ok: false, 
-              mensaje: "No hay registros activos en estado 'Asignado' para esta cédula.", 
+              mensaje: "Código QR no encontrado en los registros de numeración.", 
               nombre: usuario.nombres_apellidos, 
               cedula: cedula, 
-              imagenCedula: usuario.url_foto 
+              imagenCedula: miniaturaFoto 
             });
             return;
           }
 
-          const registroADevolver = registros[0]; // Extraemos el primer registro de forma segura
+          const registroReciente = registros[0];
 
-          // Actualizar la fila en Supabase cambiando estado a 'Devuelto'
-          const urlUpdate = `${SUPABASE_URL}/rest/v1/numeracion?id=eq.${registroADevolver.id}`;
+          // Validar estado exacto como lo hacía tu Apps Script original
+          if (registroReciente.estado !== "Asignado") {
+            procesarRespuestaServidorJSONP({ 
+              ok: false, 
+              color: "orange",
+              mensaje: "El último registro de este código no está ASIGNADO (Estado: " + (registroReciente.estado || "VACÍO") + ").", 
+              nombre: usuario.nombres_apellidos, 
+              cedula: cedula, 
+              imagenCedula: miniaturaFoto 
+            });
+            return;
+          }
+
+          // Ejecutar la Devolución (Update) usando PATCH
+          const urlUpdate = `${SUPABASE_URL}/rest/v1/numeracion?id=eq.${registroReciente.id}`;
           const resUpdate = await fetch(urlUpdate, {
             method: "PATCH",
             headers: {
@@ -419,13 +436,13 @@
             procesarRespuestaServidorJSONP({
               ok: true,
               tipoVista: "resultadoDevolución",
-              mensaje: "Devolución registrada con éxito",
+              mensaje: "Se devuelve el código Número " + (registroReciente.numero_asignado || ""),
               nombre: usuario.nombres_apellidos,
               cedula: usuario.cedula,
-              imagenCedula: usuario.url_foto
+              imagenCedula: miniaturaFoto
             });
           } else {
-            maniobrarErrorServidor("Error al actualizar la base de datos.");
+            maniobrarErrorServidor("Error al actualizar el estado en la base de datos.");
           }
         }
 
@@ -434,7 +451,8 @@
       }
     }
 
-    // 🖨️ CONTROLADOR INTERNO DE VISTAS (Mantiene tu estructura visual intacta)
+    // 🖨️ CONTROLADOR INTERNO DE VISTAS 
+        // 🖨️ CONTROLADOR INTERNO DE VISTAS 
     window.procesarRespuestaServidorJSONP = function(data) {
       const r = document.getElementById("resultado");
       
@@ -495,7 +513,7 @@
       }
     };
 
-        function maniobrarErrorServidor(mensaje) {
+    function maniobrarErrorServidor(mensaje) {
       const r = document.getElementById("resultado");
       r.className = "red";
       r.innerHTML = "<strong>" + mensaje + "</strong>";
@@ -507,7 +525,7 @@
       }, 8000);
     }
 
-    // 💾 GUARDAR PARTE FALTANTE: ASIGNACIÓN DE NÚMERO
+    // 💾 GUARDAR PARTE FALTANTE: ASIGNACIÓN DE NÚMERO (POST)
     async function guardarNumeroAsignado() {
       const numeroAsignadoValue = document.getElementById("inputNumeroAsignado").value.trim();
       if (!numeroAsignadoValue) {
@@ -516,7 +534,6 @@
       }
 
       try {
-        // Enviar la inserción directa a la tabla 'numeracion'
         const urlInsert = `${SUPABASE_URL}/rest/v1/numeracion`;
         const resInsert = await fetch(urlInsert, {
           method: "POST",
@@ -535,7 +552,7 @@
         });
 
         if (resInsert.ok) {
-          alert("Asignación guardada exitosamente en la base de datos.");
+          alert("Número " + numeroAsignadoValue + " guardado con éxito. Estado: Asignado.");
           regresarAlMenuPrincipal();
         } else {
           alert("Error crítico de base de datos al intentar guardar.");
