@@ -586,4 +586,21 @@
         regresarAlMenuPrincipal();
       }
     }
+    function regresarAlMenuPrincipal() {
+      procesandoScan = false;
+      modoAccionActual = "";
+      qrLimpioGuardado = "";
+      
+      document.getElementById("resultado").innerHTML = "";
+      document.getElementById("resultado").className = "";
+      
+      document.getElementById("vista-formulario-asignar").style.display = "none";
+      document.getElementById("vista-resultado-devolver").style.display = "none";
+      
+      document.getElementById("btnCancelar").style.display = "none";
+      document.getElementById("menu-botones").style.display = "block";
+      document.getElementById("vista-escaneo").style.display = "block";
+    }
+
+  
   </script>
