@@ -231,6 +231,12 @@
     const SUPABASE_URL = "https://dffmmsmcwbzxxgdczzww.supabase.co";
     const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRmZm1tc21jd2J6eHhnZGN6end3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk1NTMwNzksImV4cCI6MjEwNTEyOTA3OX0.diGOnxMrG5nwK6XhXdLcj72tbEwKtiUd8VANpUFAA1Y";
 
+
+    <script>
+    // ➡️ CONFIGURACIÓN DE TU BASE DE DATOS SUPABASE
+    const SUPABASE_URL = "https://supabase.co";
+    const SUPABASE_KEY = "TU_CLAVE_ANON_PUBLIC_DE_LA_PRIMERA_IMAGEN"; // Recuerda usar la que empieza con eyJhbGciOi...
+
     let html5QrcodeScanner = null;
     let procesandoScan = false;
     let modoAccionActual = ""; 
@@ -244,7 +250,7 @@
     };
 
     function activarModo(modo) {
-      modoAccionActual = modo;
+      modoAccionActual = modo; // Aquí se guarda 'buscarAsignar' o 'devolver'
       document.getElementById("menu-botones").style.display = "none";
       document.getElementById("btnCancelar").style.display = "inline-block";
       verificarYArrancar();
@@ -297,7 +303,7 @@
       }
     }
 
-    // 🔄 TRADUCCIÓN FIEL DE TU FUNCIÓN OBTENER MINIATURA DE DRIVE
+    // 🔄 EXTRAE EL ID DE GOOGLE DRIVE Y GENERA LA MINIATURA COMPATIBLE
     function obtenerUrlMiniatura(urlDrive) {
       const textoUrl = String(urlDrive || "").trim();
       if (!textoUrl) return "";
@@ -310,11 +316,10 @@
         const matchD = textoUrl.match(/\/d\/([^\/]+)/);
         if (matchD) idDrive = matchD[1];
       }
-      return idDrive ? "https://drive.google.com/thumbnail?id=" + idDrive + "&sz=w100" : "";
+      return idDrive ? "https://google.com" + idDrive + "&sz=w300" : "";
     }
 
-    // ⚡ PROCESAMIENTO ASÍNCRONO DIRECTO EN SUPABASE
-        // ⚡ PROCESAMIENTO CON SUPABASE - LOGICA DE LIMPIEZA 100% CORREGIDA
+    // ⚡ PROCESAMIENTO CON SUPABASE
     async function codigoDetectadoEnVivo(decodedText) {
       if (procesandoScan) return;
       procesandoScan = true;
@@ -326,16 +331,15 @@
       try {
         await html5QrcodeScanner.stop();
 
-        // 1. TRADUCCIÓN CORRECTA DE TU FUNCIÓN DE LIMPIEZA ORIGINAL PARA EL NAVEGADOR
+        // 1. TU LÓGICA DE LIMPIEZA ORIGINAL (Separa el guion de forma segura)
         let codigoString = String(decodedText).trim();
         let cedula = codigoString;
 
         if (codigoString.includes("-")) {
           const partes = codigoString.split("-");
-          // CORRECCIÓN: Tomamos el índice [1] (lo que está después del guion) de forma segura
           cedula = partes[1] ? partes[1].trim() : codigoString;
         }
-        cedulaGuardadaMesa = cedula; // Guardamos la cédula limpia para el envío posterior
+        cedulaGuardadaMesa = cedula; 
 
         // Headers de autenticación para Supabase
         const headersSupabase = {
@@ -344,25 +348,23 @@
         };
 
         // 2. Buscar si el usuario existe en la tabla 'usuarios'
-        const urlUser = `${SUPABASE_URL}/rest/v1/usuarios?cedula=eq.${encodeURIComponent(cedula)}`;
+        const urlUser = `${SUPABASE_URL}/rest/v1/usuarios?cedula=eq.${encodeURIComponent(cedula)}&select=*`;
         const resUser = await fetch(urlUser, { headers: headersSupabase });
         const usuarios = await resUser.json();
 
-        // Verificamos si Supabase devolvió una lista vacía
         if (!Array.isArray(usuarios) || usuarios.length === 0) {
-          procesarRespuestaServidorJSONP({ ok: false, mensaje: "La cédula " + cedula + " no existe en el sistema.", cedula: cedula });
+          procesarRespuestaServidorJSONP({ ok: false, mensaje: "La cédula " + cedula + " no existe en la base de datos de usuarios.", cedula: cedula });
           return;
         }
         
-        // Extraemos de forma segura el primer registro del Array de Supabase
         const usuario = usuarios[0]; 
         const miniaturaFoto = obtenerUrlMiniatura(usuario.url_foto);
 
         // ----------------------------------------------------
-        // CASO DE USO A: VISTA ASIGNAR
+        // CORREGIDO ➡️ CASO DE USO A: VISTA ASIGNAR (buscarAsignar)
         // ----------------------------------------------------
-        if (modoAccionActual === "asignar" || modoAccionActual === "Asignar") {
-          // Comprobar si ya tiene una asignación activa
+        if (modoAccionActual === "buscarAsignar") {
+          // Comprobar si ya tiene una asignación activa en numeracion
           const urlCheck = `${SUPABASE_URL}/rest/v1/numeracion?cedula=eq.${encodeURIComponent(cedula)}&estado=eq.Asignado&select=id`;
           const resCheck = await fetch(urlCheck, { headers: headersSupabase });
           const activos = await resCheck.json();
@@ -379,7 +381,7 @@
             return;
           }
 
-          // Desplegar formulario visual de asignación
+          // Muestra correctamente el formulario en la interfaz
           procesarRespuestaServidorJSONP({
             ok: true,
             tipoVista: "formularioAsignar",
@@ -389,15 +391,14 @@
           });
 
         // ----------------------------------------------------
-        // CASO DE USO B: VISTA DEVOLUCIÓN
+        // CASO DE USO B: VISTA DEVOLUCIÓN (devolver)
         // ----------------------------------------------------
         } else { 
-          // Buscar el último registro registrado de esta cédula (id descendente)
+          // Buscar el último registro de la persona en la tabla numeracion
           const urlDev = `${SUPABASE_URL}/rest/v1/numeracion?cedula=eq.${encodeURIComponent(cedula)}&order=id.desc&limit=1`;
           const resDev = await fetch(urlDev, { headers: headersSupabase });
           const registros = await resDev.json();
 
-          // Si nunca ha tenido asignaciones
           if (!registros || !Array.isArray(registros) || registros.length === 0) {
             procesarRespuestaServidorJSONP({ 
               ok: false, 
@@ -411,7 +412,6 @@
 
           const registroReciente = registros[0];
 
-          // Validar estado exacto como lo hacía tu Apps Script original
           if (registroReciente.estado !== "Asignado") {
             procesarRespuestaServidorJSONP({ 
               ok: false, 
@@ -424,7 +424,7 @@
             return;
           }
 
-          // Ejecutar la Devolución (Update) usando PATCH
+          // Ejecutar Devolución cambiando estado a 'Devuelto'
           const urlUpdate = `${SUPABASE_URL}/rest/v1/numeracion?id=eq.${registroReciente.id}`;
           const resUpdate = await fetch(urlUpdate, {
             method: "PATCH",
@@ -449,7 +449,7 @@
               imagenCedula: miniaturaFoto
             });
           } else {
-            maniobrarErrorServidor("Error al actualizar el estado en la base de datos.");
+            maniobrarErrorServidor("Error al actualizar la base de datos.");
           }
         }
 
@@ -458,9 +458,8 @@
       }
     }
 
-
-    // 🖨️ CONTROLADOR INTERNO DE VISTAS 
-        // 🖨️ CONTROLADOR INTERNO DE VISTAS 
+    // 🖨️ CONTROLADOR VISUAL DE INTERFAZ
+        // 🖨️ CONTROLADOR VISUAL DE INTERFAZ
     window.procesarRespuestaServidorJSONP = function(data) {
       const r = document.getElementById("resultado");
       
@@ -468,7 +467,6 @@
         r.innerHTML = "";
         r.className = "";
         
-        // VISTA A: Asignar Número
         if (data.tipoVista === "formularioAsignar") {
           document.getElementById("asignar-nombre").innerText = data.nombre || "No especificado";
           document.getElementById("asignar-cedula").innerText = data.cedula || "No especificado";
@@ -484,7 +482,6 @@
           document.getElementById("vista-escaneo").style.display = "none";
           document.getElementById("vista-formulario-asignar").style.display = "block"; 
         
-        // VISTA B: Confirmar Devolución
         } else if (data.tipoVista === "resultadoDevolución") {
           document.getElementById("devolver-mensaje-badge").innerText = "✓ " + data.mensaje;
           document.getElementById("devolver-nombre").innerText = data.nombre || "No especificado";
@@ -533,7 +530,7 @@
       }, 8000);
     }
 
-    // 💾 GUARDAR PARTE FALTANTE: ASIGNACIÓN DE NÚMERO (POST)
+    // 💾 INSERTA LA ASIGNACIÓN EN LA TABLA NUMERACIÓN (Al presionar "Guardar Datos")
     async function guardarNumeroAsignado() {
       const numeroAsignadoValue = document.getElementById("inputNumeroAsignado").value.trim();
       if (!numeroAsignadoValue) {
@@ -570,6 +567,18 @@
       }
     }
 
+    function regresarAlMenuPrincipal() {
+      document.getElementById("vista-formulario-asignar").style.display = "none";
+      document.getElementById("vista-resultado-devolver").style.display = "none";
+      document.getElementById("vista-escaneo").style.display = "block";
+      document.getElementById("menu-botones").style.display = "block";
+      document.getElementById("btnCancelar").style.display = "none";
+      const r = document.getElementById("resultado");
+      r.innerHTML = "";
+      r.className = "";
+      procesandoScan = false;
+    }
+
     function cancelarEscaneo() {
       if (html5QrcodeScanner) {
         html5QrcodeScanner.stop().then(() => { 
@@ -581,4 +590,4 @@
         regresarAlMenuPrincipal();
       }
     }
-</script>
+  </script>
