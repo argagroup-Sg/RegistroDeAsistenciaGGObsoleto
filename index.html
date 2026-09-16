@@ -312,9 +312,8 @@
         // 1. Limpieza del QR para obtener únicamente la Cédula (Retira lo que está antes del '-')
         let cedula = decodedText.trim();
         if (cedula.includes("-")) {
-          // Tomamos la posición 1 (lo que está después del guion) y le aplicamos trim
           cedula = cedula.split("-")[1].trim(); 
-        }
+        }       
         cedulaGuardadaMesa = cedula; // Guardamos la cédula para el proceso posterior
 
         // Headers comunes para consultar la API REST de Supabase
@@ -324,7 +323,11 @@
         };
 
         // 2. Buscar si el usuario existe en la tabla 'usuarios'
-        const urlUser = `${SUPABASE_URL}/rest/v1/usuarios?cedula=eq.${cedula}&select=*`;
+        // Limpiamos la cédula quitando cualquier espacio accidental al inicio o final
+        const cedulaLimpia = cedula.trim();
+        // Usamos ilike con comodines por si existen espacios invisibles en la base de datos
+        const urlUser = `${SUPABASE_URL}/rest/v1/usuarios?cedula=ilike.*${cedulaLimpia}*&select=*`;
+
         const resUser = await fetch(urlUser, { headers: headersSupabase });
         const usuarios = await resUser.json();
 
