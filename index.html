@@ -298,6 +298,7 @@
     }
 
     // 🔄 EXTRAE EL ID DE GOOGLE DRIVE Y GENERA LA MINIATURA COMPATIBLE
+    // 🔄 EXTRAE EL ID DE GOOGLE DRIVE Y GENERA LA MINIATURA COMPATIBLE (CORREGIDO)
     function obtenerUrlMiniatura(urlDrive) {
       const textoUrl = String(urlDrive || "").trim();
       if (!textoUrl) return "";
@@ -305,13 +306,16 @@
 
       if (textoUrl.includes("id=")) {
         const matchId = textoUrl.match(/[?&]id=([a-zA-Z0-9_-]+)/);
-        if (matchId) idDrive = matchId[1];
+        // CORRECCIÓN: Extraemos de forma segura el índice 1 del arreglo que contiene el ID puro
+        if (matchId && matchId[1]) idDrive = matchId[1];
       } else {
         const matchD = textoUrl.match(/\/d\/([^\/]+)/);
-        if (matchD) idDrive = matchD[1];
+        // CORRECCIÓN: Extraemos el índice 1
+        if (matchD && matchD[1]) idDrive = matchD[1];
       }
-      return idDrive ? "https://google.com" + idDrive + "&sz=w300" : "";
+      return idDrive ? "https://drive.google.com/thumbnail?id=" + idDrive + "&sz=w300" : "";
     }
+
 
     // ⚡ PROCESAMIENTO CON SUPABASE
     // ⚡ PROCESAMIENTO CON SUPABASE - CORRECCIÓN DE SINTAXIS PARA EL NAVEGADOR
