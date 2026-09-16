@@ -320,6 +320,7 @@
     }
 
     // ⚡ PROCESAMIENTO CON SUPABASE
+    // ⚡ PROCESAMIENTO CON SUPABASE - CORRECCIÓN DE SINTAXIS PARA EL NAVEGADOR
     async function codigoDetectadoEnVivo(decodedText) {
       if (procesandoScan) return;
       procesandoScan = true;
@@ -331,12 +332,13 @@
       try {
         await html5QrcodeScanner.stop();
 
-        // 1. TU LÓGICA DE LIMPIEZA ORIGINAL (Separa el guion de forma segura)
+        // 1. TU LÓGICA DE LIMPIEZA ORIGINAL CORREGIDA PARA NAVEGADOR (Sin bloquear los botones)
         let codigoString = String(decodedText).trim();
         let cedula = codigoString;
 
         if (codigoString.includes("-")) {
           const partes = codigoString.split("-");
+          // CORRECCIÓN: Extraemos el texto de la posición 1 y a ESE texto le aplicamos el .trim()
           cedula = partes[1] ? partes[1].trim() : codigoString;
         }
         cedulaGuardadaMesa = cedula; 
@@ -361,10 +363,9 @@
         const miniaturaFoto = obtenerUrlMiniatura(usuario.url_foto);
 
         // ----------------------------------------------------
-        // CORREGIDO ➡️ CASO DE USO A: VISTA ASIGNAR (buscarAsignar)
+        // CASO DE USO A: VISTA ASIGNAR (buscarAsignar)
         // ----------------------------------------------------
         if (modoAccionActual === "buscarAsignar") {
-          // Comprobar si ya tiene una asignación activa en numeracion
           const urlCheck = `${SUPABASE_URL}/rest/v1/numeracion?cedula=eq.${encodeURIComponent(cedula)}&estado=eq.Asignado&select=id`;
           const resCheck = await fetch(urlCheck, { headers: headersSupabase });
           const activos = await resCheck.json();
@@ -381,7 +382,6 @@
             return;
           }
 
-          // Muestra correctamente el formulario en la interfaz
           procesarRespuestaServidorJSONP({
             ok: true,
             tipoVista: "formularioAsignar",
@@ -394,7 +394,6 @@
         // CASO DE USO B: VISTA DEVOLUCIÓN (devolver)
         // ----------------------------------------------------
         } else { 
-          // Buscar el último registro de la persona en la tabla numeracion
           const urlDev = `${SUPABASE_URL}/rest/v1/numeracion?cedula=eq.${encodeURIComponent(cedula)}&order=id.desc&limit=1`;
           const resDev = await fetch(urlDev, { headers: headersSupabase });
           const registros = await resDev.json();
@@ -424,7 +423,6 @@
             return;
           }
 
-          // Ejecutar Devolución cambiando estado a 'Devuelto'
           const urlUpdate = `${SUPABASE_URL}/rest/v1/numeracion?id=eq.${registroReciente.id}`;
           const resUpdate = await fetch(urlUpdate, {
             method: "PATCH",
@@ -443,7 +441,7 @@
             procesarRespuestaServidorJSONP({
               ok: true,
               tipoVista: "resultadoDevolución",
-              mensaje: "Se devuelve el código Número " + (registroReciente.numero_asignado || ""),
+              mensaje: "Se devuelve el código Número " + (registroReciente.numero_assigned || registroReciente.numero_asignado || ""),
               nombre: usuario.nombres_apellidos,
               cedula: usuario.cedula,
               imagenCedula: miniaturaFoto
@@ -458,7 +456,7 @@
       }
     }
 
-    // 🖨️ CONTROLADOR VISUAL DE INTERFAZ
+  
         // 🖨️ CONTROLADOR VISUAL DE INTERFAZ
     window.procesarRespuestaServidorJSONP = function(data) {
       const r = document.getElementById("resultado");
