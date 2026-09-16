@@ -226,14 +226,15 @@
       <button class="btn-accion btn-volver" onclick="regresarAlMenuPrincipal()">VOLVER A ESCANEAR</button>
     </div>
   </div>
+<script>
+    // ➡️ CONFIGURACIÓN DE TU BASE DE DATOS SUPABASE
+    const SUPABASE_URL = "https://dffmmsmcwbzxxgdczzww.supabase.co";
+    const SUPABASE_KEY = "TeyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRmZm1tc21jd2J6eHhnZGN6end3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk1NTMwNzksImV4cCI6MjEwNTEyOTA3OX0.diGOnxMrG5nwK6XhXdLcj72tbEwKtiUd8VANpUFAA1Y";
 
-  <script>
-    
-    const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzYhXV-Ebo5ISaFOgdR3OKYavjhiyUrbzmRTwb2lEsuavyLqE9LfDz062vNOt3TR0Q8/exec";
     let html5QrcodeScanner = null;
     let procesandoScan = false;
     let modoAccionActual = ""; 
-    let qrLimpioGuardado = ""; 
+    let cedulaGuardadaMesa = ""; // Guardamos la cédula en lugar del número de fila de Sheets
 
     window.onerror = function(msg, url, linenumber) {
       const r = document.getElementById("resultado");
@@ -296,7 +297,8 @@
       }
     }
 
-    function codigoDetectadoEnVivo(decodedText) {
+    // ⚡ PROCESAMIENTO LOCAL EN SEGUNDOS - CONEXIÓN CON SUPABASE
+    async function codigoDetectadoEnVivo(decodedText) {
       if (procesandoScan) return;
       procesandoScan = true;
       
@@ -304,26 +306,108 @@
       r.className = "";
       r.innerHTML = "Consultando validez del pase...";
       
-      html5QrcodeScanner.stop().then(() => {
-        const viejoScript = document.getElementById("jsonp-request");
-        if (viejoScript) viejoScript.remove();
-        
-        const script = document.createElement("script");
-        script.id = "jsonp-request";
-        script.src = WEB_APP_URL + "?codigoQR=" + encodeURIComponent(decodedText) + "&accion=" + modoAccionActual + "&callback=procesarRespuestaServidorJSONP";
-        script.onerror = function() {
-          maniobrarErrorServidor("Error crítico de conexión con Google.");
+      try {
+        await html5QrcodeScanner.stop();
+
+        // 1. Limpieza del QR para obtener únicamente la Cédula (Retira lo que está antes del '-')
+        let cedula = decodedText.trim();
+        if (cedula.includes("-")) {
+          cedula = cedula.split("-")[1].trim();
+        }
+        cedulaGuardadaMesa = cedula; // Guardamos la cédula para el proceso posterior
+
+        // Headers comunes para consultar la API REST de Supabase
+        const headersSupabase = {
+          "apikey": SUPABASE_KEY,
+          "Authorization": `Bearer ${SUPABASE_KEY}`
         };
-        document.body.appendChild(script);
-      }).catch(err => {
-        procesandoScan = false;
-      });
+
+        // 2. Buscar si el usuario existe en la tabla 'usuarios'
+        const urlUser = `${SUPABASE_URL}/rest/v1/usuarios?cedula=eq.${cedula}&select=*`;
+        const resUser = await fetch(urlUser, { headers: headersSupabase });
+        const usuarios = await resUser.json();
+
+        if (usuarios.length === 0) {
+          procesarRespuestaServidorJSONP({ ok: false, mensaje: "Cédula no registrada en el sistema.", cedula: cedula });
+          return;
+        }
+        const usuario = usuarios[0];
+
+        // ----------------------------------------------------
+        // CASO DE USO A: VISTA ASIGNAR
+        // ----------------------------------------------------
+        if (modoAccionActual === "asignar" || modoAccionActual === "Asignar") {
+          // Comprobar si ya tiene una asignación activa (Opcional pero recomendado para evitar duplicar asignaciones)
+          const urlCheck = `${SUPABASE_URL}/rest/v1/numeracion?cedula=eq.${cedula}&estado=eq.Asignado&select=id`;
+          const resCheck = await fetch(urlCheck, { headers: headersSupabase });
+          const activos = await resCheck.json();
+
+          if (activos.length > 0) {
+            procesarRespuestaServidorJSONP({ ok: false, mensaje: "¡Atención! Este usuario ya tiene un número asignado sin devolver.", nombre: usuario.nombres_apellidos, cedula: cedula, imagenCedula: usuario.url_foto, color: "orange" });
+            return;
+          }
+
+          // Enviar respuesta simulada a tu interfaz existente
+          procesarRespuestaServidorJSONP({
+            ok: true,
+            tipoVista: "formularioAsignar",
+            nombre: usuario.nombres_apellidos,
+            cedula: usuario.cedula,
+            imagenCedula: usuario.url_foto
+          });
+
+        // ----------------------------------------------------
+        // CASO DE USO B: VISTA DEVOLUCIÓN
+        // ----------------------------------------------------
+        } else { 
+          // Buscar el registro de asignación MAS RECIENTE (id descendente) que esté 'Asignado'
+          const urlDev = `${SUPABASE_URL}/rest/v1/numeracion?cedula=eq.${cedula}&estado=eq.Asignado&order=id.desc&limit=1`;
+          const resDev = await fetch(urlDev, { headers: headersSupabase });
+          const registros = await resDev.json();
+
+          if (registros.length === 0) {
+            procesarRespuestaServidorJSONP({ ok: false, mensaje: "No hay registros activos en estado 'Asignado' para esta cédula.", nombre: usuario.nombres_apellidos, cedula: cedula, imagenCedula: usuario.url_foto });
+            return;
+          }
+
+          const registroADevolver = registros[0];
+
+          // Ejecutar la Devolución (Update) en Supabase cambiando estado a 'Devuelto' y marcando la hora
+          const urlUpdate = `${SUPABASE_URL}/rest/v1/numeracion?id=eq.${registroADevolver.id}`;
+          const resUpdate = await fetch(urlUpdate, {
+            method: "PATCH",
+            headers: {
+              ...headersSupabase,
+              "Content-Type": "application/json",
+              "Prefer": "return=minimal"
+            },
+            body: JSON.stringify({
+              estado: "Devuelto",
+              fecha_devolucion: new Date().toISOString()
+            })
+          });
+
+          if (resUpdate.ok) {
+            procesarRespuestaServidorJSONP({
+              ok: true,
+              tipoVista: "resultadoDevolución",
+              mensaje: "Devolución registrada con éxito",
+              nombre: usuario.nombres_apellidos,
+              cedula: usuario.cedula,
+              imagenCedula: usuario.url_foto
+            });
+          } else {
+            maniobrarErrorServidor("Error al actualizar la base de datos.");
+          }
+        }
+
+      } catch (err) {
+        maniobrarErrorServidor("Error de red o comunicación: " + err.message);
+      }
     }
 
-    // RETORNO GLOBAL JSONP CORREGIDO Y FORMATEADO
+    // 🖨️ CONTROLADOR INTERNO DE VISTAS (Mantiene tu estructura visual intacta)
     window.procesarRespuestaServidorJSONP = function(data) {
-      const script = document.getElementById("jsonp-request");
-      if (script) script.remove();
       const r = document.getElementById("resultado");
       
       if (data.ok) {
@@ -332,8 +416,6 @@
         
         // VISTA A: Asignar Número
         if (data.tipoVista === "formularioAsignar") {
-          // Guardamos el número de fila que nos devolvió el Sheets
-          qrLimpioGuardado = data.filaDestino; 
           document.getElementById("asignar-nombre").innerText = data.nombre || "No especificado";
           document.getElementById("asignar-cedula").innerText = data.cedula || "No especificado";
           document.getElementById("inputNumeroAsignado").value = "";
@@ -363,14 +445,8 @@
           } 
           document.getElementById("vista-escaneo").style.display = "none";
           document.getElementById("vista-resultado-devolver").style.display = "block"; 
-        
-        } else {
-          // Confirmación de guardado exitoso (Paso 2: confirmarAsignar)
-          alert(data.mensaje);
-          regresarAlMenuPrincipal();
         }
       } else {
-        // Manejo seguro de la imagen en errores condicionales
         let bloqueImagen = "";
         if (data.imagenCedula) {
           bloqueImagen = `<br><img src="${data.imagenCedula}" style="max-width:200px; display:inline-block; margin-top:10px; border-radius:6px; border:1px solid #ddd;">`;
@@ -382,7 +458,6 @@
           ${data.cedula ? 'Cédula: ' + data.cedula : ''}
           ${bloqueImagen}`;
         
-        // Temporizador para limpiar alertas y reencender la cámara automáticamente
         setTimeout(() => {
           r.innerHTML = "";
           r.className = "";
@@ -392,7 +467,7 @@
       }
     };
 
-    function maniobrarErrorServidor(mensaje) {
+        function maniobrarErrorServidor(mensaje) {
       const r = document.getElementById("resultado");
       r.className = "red";
       r.innerHTML = "<strong>" + mensaje + "</strong>";
@@ -404,24 +479,42 @@
       }, 8000);
     }
 
-    function guardarNumeroAsignado() {
+    // 💾 GUARDAR PARTE FALTANTE: ASIGNACIÓN DE NÚMERO
+    async function guardarNumeroAsignado() {
       const numeroAsignadoValue = document.getElementById("inputNumeroAsignado").value.trim();
       if (!numeroAsignadoValue) {
         alert("Por favor, digite un número asignado antes de guardar.");
         return;
       }
-      const viejoScript = document.getElementById("jsonp-request");
-      if (viejoScript) viejoScript.remove();
-      const script = document.createElement("script");
-      script.id = "jsonp-request";
-      
-      // Callback inyectado explícitamente en la URL para resolver la petición JSONP
-      script.src = WEB_APP_URL + "?accion=confirmarAsignar&filaDestino=" + encodeURIComponent(qrLimpioGuardado) + "&numeroAsignado=" + encodeURIComponent(numeroAsignadoValue) + "&callback=procesarRespuestaServidorJSONP";
-      
-      script.onerror = function() {
-        alert("Error de conexión al intentar guardar.");
-      };
-      document.body.appendChild(script);
+
+      try {
+        // Enviar la inserción directa a la tabla 'numeracion'
+        const urlInsert = `${SUPABASE_URL}/rest/v1/numeracion`;
+        const resInsert = await fetch(urlInsert, {
+          method: "POST",
+          headers: {
+            "apikey": SUPABASE_KEY,
+            "Authorization": `Bearer ${SUPABASE_KEY}`,
+            "Content-Type": "application/json",
+            "Prefer": "return=minimal"
+          },
+          body: JSON.stringify({
+            cedula: cedulaGuardadaMesa,
+            fecha_asignacion: new Date().toISOString(),
+            estado: "Asignado",
+            numero_asignado: numeroAsignadoValue
+          })
+        });
+
+        if (resInsert.ok) {
+          alert("Asignación guardada exitosamente en la base de datos.");
+          regresarAlMenuPrincipal();
+        } else {
+          alert("Error crítico de base de datos al intentar guardar.");
+        }
+      } catch (err) {
+        alert("Error de conexión al intentar guardar: " + err.message);
+      }
     }
 
     function cancelarEscaneo() {
@@ -435,20 +528,4 @@
         regresarAlMenuPrincipal();
       }
     }
-
-    function regresarAlMenuPrincipal() {
-      procesandoScan = false;
-      modoAccionActual = "";
-      qrLimpioGuardado = "";
-      
-      document.getElementById("resultado").innerHTML = "";
-      document.getElementById("resultado").className = "";
-      
-      document.getElementById("vista-formulario-asignar").style.display = "none";
-      document.getElementById("vista-resultado-devolver").style.display = "none";
-      
-      document.getElementById("btnCancelar").style.display = "none";
-      document.getElementById("menu-botones").style.display = "block";
-      document.getElementById("vista-escaneo").style.display = "block";
-    }
-  </script>
+</script>
